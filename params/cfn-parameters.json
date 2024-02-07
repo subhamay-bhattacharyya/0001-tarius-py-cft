@@ -1,0 +1,29 @@
+{
+    "stack-prefix": "root",
+    "stack-suffix": "stack",
+    "template-path": "cft/tarius-root-stack.yaml",
+    "project-name": "tarius",
+    "parameters": {
+        "devl": [
+            {
+                "Environment": "devl",
+                "S3CustomResourceStackName": "lilac-custom-resource-stack",
+                "LambdaFunctionBaseName": "process-data"
+            }
+        ],
+        "test": [
+            {
+                "Environment": "test",
+                "S3CustomResourceStackName": "lilac-custom-resource-stack",
+                "LambdaFunctionBaseName": "process-data"
+            }
+        ],
+        "prod": [
+            {
+                "Environment": "prod",
+                "S3CustomResourceStackName": "lilac-custom-resource-stack",
+                "LambdaFunctionBaseName": "process-data"
+            }
+        ]
+    }
+}
