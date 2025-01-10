@@ -1,0 +1,372 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Tarius: Root stack template to create:
+  - VPC.
+  - Two Private Subnets.
+  - Custom NACL.
+  - Custom Security Group for Lambda.
+  - SNS Topic and Subscription.
+  - Lambda Function.
+
+
+Metadata:
+  TemplateName: tarius-root-stack.yaml
+  TemplateType: Root Stack Template
+  TemplateVersion: 1.0.0
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Tarius
+  Modification History:
+    - 1.0.0 - Jan 10, 2025 -- Initial Version
+  StepsToTest: Manually verify the Stack.
+  StepsToCleanup: Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      ################################## Project Name and Environment ##############################
+      - Label:
+          default: "Project Name and Environment:"
+        Parameters:
+          - ProjectName
+          - Environment
+      ################################## GitHub Attributes #########################################
+      - Label:
+          default: "GitHub Attributes:"
+        Parameters:
+          - GitHubRef
+          - GitHubURL
+          - GitHubWFRunNumber
+          - GitHubSHA
+          - GitHubRepository
+          - CiBuild
+      ################################## Code Repository ###########################################
+      - Label:
+          default: "Code Repository:"
+        Parameters:
+          - CodeRepositoryS3Bucket
+      ################################## KMS #######################################################
+      - Label:
+          default: "KMS Key:"
+        Parameters:
+          - KmsMasterKeyAlias
+      ################################## SNS Email #################################################
+      - Label:
+          default: "SNS Email:"
+        Parameters:
+          - SNSNotificationEmail
+
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL:
+        default: "GitHub URL."
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA:
+        default: "GitHub SHA"
+      GitHubRepository:
+        default: "GitHub Repository."
+      CiBuild:
+        default: "Ci Build."
+      ################################## KMS #######################################################
+      KmsMasterKeyAlias:
+        default: "KMS Master Key Alias."
+      ################################## SNS Email #################################################
+      SNSNotificationEmail:
+        default: "SNS Notification Email."
+
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: devops30-nba
+    Description: "The Project name to be used as a resource tag value."
+    Type: String
+    MinLength: 5
+    MaxLength: 30
+    AllowedPattern: "^[a-z0-9-]+$"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets, numbers, or dashes."
+  Environment:
+    Default: devl
+    Description: "The Environment name to be used as a resource tag value."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+  ###################################### Code Repository ###########################################
+  CodeRepositoryS3Bucket:
+    Default: "subhamay-aws-cfn-nested-stack-templates-us-east-1"
+    Description: "The GitHub Code Repository URL."
+    Type: String
+    AllowedPattern: "^[a-z0-9.-]{3,63}$"
+    ConstraintDescription: "The S3 bucket name must be between 3 and 63 characters long, and can only contain lowercase letters, numbers, dots, and hyphens." ###################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref name to be used as a resource tag value."
+    Type: String
+    AllowedPattern: "^[a-zA-Z0-9/_-]+$"
+    ConstraintDescription: "The GitHub Ref Name can only contain alphanumeric characters, slashes, underscores, and hyphens."
+  GitHubURL:
+    Default: "https://github.com/owner/repository"
+    Description: "GitHub URL to be used as a resource tag value."
+    Type: String
+    AllowedPattern: "^https://github.com/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+/?$"
+    ConstraintDescription: "The GitHub URL must start with 'https://github.com/' and can only contain alphanumeric characters, dots, underscores, and hyphens."
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workflow run number to be used as a resource tag value."
+    Type: Number
+  GitHubSHA:
+    Default: "d3b07384d113edec49eaa6238ad5ff00f6fb3796"
+    Description: "The sha value of the last commit to be used as a resource tag value."
+    Type: String
+    AllowedPattern: "^[a-fA-F0-9]{40}$"
+    ConstraintDescription: "The SHA value must be a 40-character hexadecimal string."
+  GitHubRepository:
+    Default: 0001-reponame-py-cft
+    Description: "The GitHub Repository name to be used as a resource tag value."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "^\\d{4}-[a-z]+(-[a-z]+)*$"
+    ConstraintDescription: "The repository length should be between 10 and 30, must contain only lowercase letters, numbers, dashes, dots, and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch to be appended to a resource name."
+    Type: String
+  ###################################### KMS #######################################################
+  KmsMasterKeyAlias:
+    Default: "SB-KMS"
+    Description: "The KMS master key alias to be used for server-side encryption."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "^[A-Z][A-Z-]+$"
+    ConstraintDescription: "The length of the KMS Key Alias should be beteen 5 and 20 and can only contain lowercase alphanumeric characters and dash."
+  ###################################### SNS #######################################################
+  SNSNotificationEmail:
+    Default: "subhamay.aws@gmail.com"
+    Description: "The email address to subscribe to the SNS topic."
+    Type: String
+    AllowedPattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+    ConstraintDescription: "The email address must be a valid email address."
+######################################## Mapppings #################################################
+Mappings:
+  SubnetConfig:
+    VpcCidrBlock:
+      CIDR: "10.0.0.0/16"
+    PrivateSubnetAZ1CidrBlock:
+      CIDR: "10.0.1.0/24"
+    PrivateSubnetAZ2CidrBlock:
+      CIDR: "10.0.3.0/24"
+
+Resources:
+  ###################################### VPC and Subnets ###########################################
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/vpc/vpc.yaml"
+      Parameters:
+        VPCCidrBlock: !FindInMap ["SubnetConfig", "VpcCidrBlock", "CIDR"]
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### Network ACL ###############################################
+  NetworkACL:
+    Type: AWS::CloudFormation::Stack
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/vpc/network-acl.yaml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### Private Subnet AZ1 ########################################
+  PrivateSubnetAZ1:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/vpc/subnet.yaml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetCidrBlock:
+          !FindInMap ["SubnetConfig", "PrivateSubnetAZ1CidrBlock", "CIDR"]
+        SubnetSequence: "0"
+        NetworkAclId: !GetAtt NetworkACL.Outputs.NetworkAclId
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### Private Subnet AZ1 ########################################
+  PrivateSubnetAZ2:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/vpc/subnet.yaml"
+      Parameters:
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        SubnetCidrBlock:
+          !FindInMap ["SubnetConfig", "PrivateSubnetAZ2CidrBlock", "CIDR"]
+        SubnetSequence: "1"
+        NetworkAclId: !GetAtt NetworkACL.Outputs.NetworkAclId
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### Security Group ############################################
+  LambdaSecurityGroup:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/vpc/security-group.yaml"
+      Parameters:
+        SecurityGroupBaseName: "lambda-sg"
+        SecurityGroupDescription: "Lambda Security Group"
+        VpcId: !GetAtt VPC.Outputs.VpcId
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### SNS #######################################################
+  SNSTopic:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/sns/sns-topic.yaml"
+      Parameters:
+        TopicBaseName: "notification-topic"
+        TopicDisplayName: "SNS Notification Topic to send email upon data ingestion."
+        KmsMasterKeyAlias: !Ref KmsMasterKeyAlias
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        GitHubRepository: !Ref GitHubRepository
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### SNS Subscription ##########################################
+  SNSSubscription:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/sns/sns-subscription.yaml"
+      Parameters:
+        SNSTopicArn: !GetAtt SNSTopic.Outputs.TopicArn
+        EmailAddress: !Ref SNSNotificationEmail
+      TimeoutInMinutes: 15
+Outputs:
+  ###################################### VPC #######################################################
+  VpcId:
+    Description: Vpc Id
+    Value: !GetAtt VPC.Outputs.VpcId
+  VpcCidrBlock:
+    Description: VPC CI/DR Block
+    Value: !GetAtt VPC.Outputs.CidrBlock
+  VpcCidrBlockAssociations:
+    Description: VPC CI/DR Block Associations
+    Value: !GetAtt VPC.Outputs.CidrBlockAssociations
+  VpcDefaultNetworkAcl:
+    Description: VPC Default ACL
+    Value: !GetAtt VPC.Outputs.DefaultNetworkAcl
+  VpcDefaultSecurityGroup:
+    Description: VPC Default Security Group
+    Value: !GetAtt VPC.Outputs.DefaultSecurityGroup
+  ###################################### Network ACL ################################################
+  NetworkAclId:
+    Description: Network ACL Id
+    Value: !GetAtt NetworkACL.Outputs.NetworkAclId
+  ###################################### Private Subnet - AZ1 ######################################
+  PrivateSubnetAZ1Id:
+    Description: Private Subnet-AZ1 Id
+    Value: !GetAtt  PrivateSubnetAZ1.Outputs.SubnetId
+  PrivateSubnetAZ1AvailabilityZone:
+    Description: Private Subnet-AZ1 Availability Zone
+    Value: !GetAtt PrivateSubnetAZ1.Outputs.AvailabilityZone
+  PrivateSubnetAZ1AvailabilityZoneId:
+    Description: Private Subnet-AZ1 Availability ZoneId
+    Value: !GetAtt PrivateSubnetAZ1.Outputs.AvailabilityZoneId
+  PrivateSubnetAZ1CidrBlock:
+    Description: Private Subnet-AZ1 CI/DR Block
+    Value: !GetAtt PrivateSubnetAZ1.Outputs.CidrBlock
+  PrivateSubnetAZ1NetworkAclAssociationId:
+    Description: Private Subnet-AZ1 Network Acl Association Id
+    Value: !GetAtt PrivateSubnetAZ1.Outputs.NetworkAclAssociationId
+  PrivateSubnetAZ1RTAssociationId:
+    Description: Private Subnet-AZ1 Subnet Route Table Association Id
+    Value: !GetAtt PrivateSubnetAZ1.Outputs.RouteTableAssociationId
+  ###################################### Private Subnet - AZ2 ######################################
+  PrivateSubnetAZ2Id:
+    Description: Private Subnet-AZ2 Id
+    Value: !GetAtt  PrivateSubnetAZ2.Outputs.SubnetId
+  PrivateSubnetAZ2AvailabilityZone:
+    Description: Private Subnet-AZ2 Availability Zone
+    Value: !GetAtt PrivateSubnetAZ2.Outputs.AvailabilityZone
+  PrivateSubnetAZ2AvailabilityZoneId:
+    Description: Private Subnet-AZ2 Availability ZoneId
+    Value: !GetAtt PrivateSubnetAZ2.Outputs.AvailabilityZoneId
+  PrivateSubnetAZ2CidrBlock:
+    Description: Private Subnet-AZ2 CI/DR Block
+    Value: !GetAtt PrivateSubnetAZ2.Outputs.CidrBlock
+  PrivateSubnetAZ2NetworkAclAssociationId:
+    Description: Private Subnet-AZ2 Network Acl Association Id
+    Value: !GetAtt PrivateSubnetAZ2.Outputs.NetworkAclAssociationId
+  PrivateSubnetAZ2RTAssociationId:
+    Description: Private Subnet-AZ2 Subnet Route Table Association Id
+    Value: !GetAtt PrivateSubnetAZ2.Outputs.RouteTableAssociationId
+  ###################################### Security Group ############################################
+  LambdaSecurityGroupId:
+    Description: Lambda Security Group Id
+    Value: !GetAtt LambdaSecurityGroup.Outputs.SecurityGroupId
+  LambdaSecurityGroupVpcId:
+    Description: Lambda Security Group Vpc Id
+    Value: !GetAtt LambdaSecurityGroup.Outputs.SecurityGroupVpcId
+  ###################################### SNS #######################################################
+  SNSTopicArn:
+    Description: SNS Topic Arn
+    Value: !GetAtt SNSTopic.Outputs.TopicArn
+  ###################################### SNS Email Subscription ####################################
+  SNSSubscriptionArn:
+    Description: SNS Subscription
+    Value: !GetAtt SNSSubscription.Outputs.EmailSubscriptionArn

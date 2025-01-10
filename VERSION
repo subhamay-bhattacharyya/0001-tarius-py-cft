@@ -1,0 +1,10 @@
+#### Version: 1.0.0
+Initial release of the CloudFormation nested stack templates
+Version: 1.0.0
+Author: Subhamay Bhattacharyya
+Created: 02-Jan-2025
+Updated: 03-Jan-2025
+Description: This repositoy contains the CloudFormation nested stack templates.
+
+## Features
+- This repository contains the CloudFormation nested stack templates.
